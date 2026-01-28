@@ -1,0 +1,80 @@
+# Fuji TCG Scanner - Default Configuration
+# Copy this file to ~/.config/fuji-tcg-scanner/config.toml and customize
+
+[scanner]
+# Scan resolution in DPI (300-600 recommended for TCG cards)
+resolution = 600
+
+# Color mode: Color, Gray, Lineart
+mode = "Color"
+
+# Paper source: Flatbed, ADF Front, ADF Back, ADF Duplex
+source = "Flatbed"
+
+# Brightness adjustment (-100 to 100)
+brightness = 5
+
+# Contrast adjustment (-100 to 100)
+contrast = 10
+
+# Gamma correction (0.1 to 5.0)
+gamma = 1.0
+
+[processing]
+# Brightness multiplier (0.5 to 2.0)
+brightness = 1.0
+
+# Contrast multiplier (0.5 to 2.0)
+contrast = 1.05
+
+# Saturation multiplier (0.5 to 2.0)
+saturation = 1.0
+
+# Sharpness multiplier (0.5 to 3.0)
+sharpness = 1.2
+
+# Color profile: standard, pokemon, mtg, yugioh, sports, vivid, neutral
+color_profile = "standard"
+
+# Enable automatic white balance correction
+white_balance = true
+
+# Enable noise reduction
+denoise = true
+
+# Noise reduction strength (1 to 20)
+denoise_strength = 5
+
+# Enable unsharp mask sharpening
+unsharp_mask = true
+
+# Enable automatic rotation correction
+auto_rotate = true
+
+# Enable automatic card detection and cropping
+auto_crop = true
+
+[output]
+# Output directory (relative or absolute path)
+directory = "./output"
+
+# Output format: png, jpeg, tiff, webp
+format = "png"
+
+# JPEG quality (1 to 100, only used for JPEG format)
+jpeg_quality = 95
+
+# Filename prefix for output files
+filename_prefix = "card"
+
+# Include timestamp in filename
+use_timestamp = true
+
+# Generate thumbnail images
+create_thumbnails = true
+
+# Thumbnail maximum dimension in pixels
+thumbnail_size = 300
+
+# Save original unprocessed scans
+save_originals = false
