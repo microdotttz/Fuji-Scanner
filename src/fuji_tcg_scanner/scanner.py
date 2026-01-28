@@ -596,3 +596,36 @@ class MockScanner(FujitsuScanner):
             source=self._config.source.value,
             scan_time=0.5,
         )
+
+
+def get_scanner_class():
+    """
+    Get the appropriate scanner class for the current platform.
+
+    Returns:
+        WIAScanner on Windows, FujitsuScanner on Linux.
+    """
+    import sys
+
+    if sys.platform == "win32":
+        from fuji_tcg_scanner.scanner_wia import WIAScanner
+        return WIAScanner
+    else:
+        return FujitsuScanner
+
+
+def create_scanner(mock: bool = False):
+    """
+    Create a scanner instance appropriate for the current platform.
+
+    Args:
+        mock: If True, return a MockScanner for testing.
+
+    Returns:
+        Scanner instance.
+    """
+    if mock:
+        return MockScanner()
+
+    scanner_class = get_scanner_class()
+    return scanner_class()

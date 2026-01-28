@@ -32,6 +32,7 @@ from fuji_tcg_scanner.scanner import (
     ScannerConfig,
     ScanResult,
     ScanSource,
+    create_scanner,
 )
 
 logger = logging.getLogger(__name__)
@@ -269,23 +270,37 @@ class BatchProcessor:
                 # Single card detection
                 cards = self.card_detector.detect(image)
 
-            for card in cards:
+            if cards:
+                for card in cards:
+                    result.total_cards += 1
+                    try:
+                        # Extract card
+                        card_image = self.card_detector.extract(image, card)
+
+                        # Process card
+                        if self.batch_config.process_images:
+                            card_image = self.image_processor.process(card_image)
+
+                        processed_cards.append(card_image)
+                        result.successful_cards += 1
+
+                    except Exception as e:
+                        logger.error(f"Failed to process card {card.index}: {e}")
+                        result.failed_cards += 1
+                        result.errors.append(f"Card {card.index}: {str(e)}")
+            else:
+                # No cards detected - save full scan as fallback
+                logger.warning("No cards detected, saving full scan")
                 result.total_cards += 1
                 try:
-                    # Extract card
-                    card_image = self.card_detector.extract(image, card)
-
-                    # Process card
                     if self.batch_config.process_images:
-                        card_image = self.image_processor.process(card_image)
-
-                    processed_cards.append(card_image)
+                        image = self.image_processor.process(image)
+                    processed_cards.append(image)
                     result.successful_cards += 1
-
                 except Exception as e:
-                    logger.error(f"Failed to process card {card.index}: {e}")
+                    logger.error(f"Failed to process full image: {e}")
                     result.failed_cards += 1
-                    result.errors.append(f"Card {card.index}: {str(e)}")
+                    result.errors.append(str(e))
         else:
             # No auto-crop, treat whole image as card
             result.total_cards += 1
@@ -322,10 +337,7 @@ class BatchProcessor:
 
         # Create or use scanner
         if scanner is None:
-            if self.batch_config.mock_mode:
-                scanner = MockScanner()
-            else:
-                scanner = FujitsuScanner()
+            scanner = create_scanner(mock=self.batch_config.mock_mode)
 
         try:
             scanner.open()

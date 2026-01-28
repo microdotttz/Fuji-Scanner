@@ -23,9 +23,14 @@ from fuji_tcg_scanner import __version__
 from fuji_tcg_scanner.batch_processor import BatchConfig, BatchProcessor, BatchResult
 from fuji_tcg_scanner.config import ConfigManager, Preset, load_config
 from fuji_tcg_scanner.image_processor import ColorProfile, OutputFormat, ProcessingConfig
-from fuji_tcg_scanner.scanner import FujitsuScanner, MockScanner, ScannerConfig
+from fuji_tcg_scanner.scanner import FujitsuScanner, MockScanner, ScannerConfig, create_scanner
 
-console = Console()
+# Force UTF-8 encoding on Windows for rich console
+if sys.platform == "win32":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
+console = Console(force_terminal=True)
 
 
 def setup_logging(level: str = "INFO") -> None:
@@ -40,11 +45,11 @@ def setup_logging(level: str = "INFO") -> None:
 def print_banner() -> None:
     """Print application banner."""
     banner = """
-╔═══════════════════════════════════════════════╗
-║     🎴 Fuji TCG Scanner v{version:<10}       ║
-║     High-Quality TCG Card Scanning            ║
-║     For Fujitsu fi-6140z                      ║
-╚═══════════════════════════════════════════════╝
++-----------------------------------------------+
+|     Fuji TCG Scanner v{version:<10}           |
+|     High-Quality TCG Card Scanning            |
+|     For Fujitsu fi-6140z                      |
++-----------------------------------------------+
 """.format(version=__version__)
     console.print(Panel(banner, style="bold blue"))
 
@@ -368,20 +373,25 @@ def devices(ctx: click.Context) -> None:
     """
     List available scanner devices.
 
-    Shows all SANE-compatible scanners detected on the system.
+    Shows all scanners detected on the system (WIA on Windows, SANE on Linux).
     """
     console.print("[cyan]Searching for scanners...[/cyan]")
 
     try:
-        scanner = FujitsuScanner()
-        devices = scanner.list_devices()
+        scanner = create_scanner(mock=False)
+        device_list = scanner.list_devices()
 
-        if not devices:
+        if not device_list:
             console.print("[yellow]No scanners found[/yellow]")
             console.print("\nTroubleshooting tips:")
-            console.print("  1. Ensure scanner is connected and powered on")
-            console.print("  2. Install SANE drivers: sudo apt install sane sane-utils")
-            console.print("  3. Check permissions: sudo usermod -a -G scanner $USER")
+            if sys.platform == "win32":
+                console.print("  1. Ensure scanner is connected and powered on")
+                console.print("  2. Check Windows Devices and Printers")
+                console.print("  3. Install Fujitsu scanner drivers")
+            else:
+                console.print("  1. Ensure scanner is connected and powered on")
+                console.print("  2. Install SANE drivers: sudo apt install sane sane-utils")
+                console.print("  3. Check permissions: sudo usermod -a -G scanner $USER")
             return
 
         table = Table(title="Available Scanners")
@@ -390,7 +400,7 @@ def devices(ctx: click.Context) -> None:
         table.add_column("Model", style="yellow")
         table.add_column("Type")
 
-        for device in devices:
+        for device in device_list:
             name, vendor, model, dev_type = device
             table.add_row(name, vendor, model, dev_type)
 
@@ -412,11 +422,7 @@ def preview(ctx: click.Context, mock: bool) -> None:
     console.print("[cyan]Performing preview scan...[/cyan]")
 
     try:
-        scanner: FujitsuScanner
-        if mock:
-            scanner = MockScanner()
-        else:
-            scanner = FujitsuScanner()
+        scanner = create_scanner(mock=mock)
 
         with scanner:
             result = scanner.preview(resolution=75)
@@ -582,6 +588,93 @@ def init() -> None:
     config_manager.create_default_presets()
     console.print("[green]Configuration initialized with default presets[/green]")
     console.print(f"[cyan]Config file:[/cyan] {config_manager.config_path}")
+
+
+@main.command()
+def gui() -> None:
+    """Launch the graphical user interface."""
+    console.print("[cyan]Launching GUI...[/cyan]")
+    try:
+        from fuji_tcg_scanner.gui import run_gui
+        run_gui()
+    except ImportError as e:
+        console.print(f"[red]GUI requires PyQt6. Install with: pip install PyQt6[/red]")
+        console.print(f"[red]Error: {e}[/red]")
+
+
+@main.command()
+@click.option("--twain", is_flag=True, help="Run TWAIN diagnostic instead of WIA")
+@click.pass_context
+def diagnostic(ctx: click.Context, twain: bool) -> None:
+    """
+    Run scanner diagnostic to dump all available properties.
+
+    This helps identify what settings can be adjusted for the scanner,
+    including feeding, paper handling, and advanced options.
+
+    Use --twain flag to run TWAIN diagnostic instead of WIA.
+    """
+    if sys.platform != "win32":
+        console.print("[yellow]Diagnostic currently only supports Windows[/yellow]")
+        return
+
+    if twain:
+        console.print("[cyan]Running TWAIN scanner diagnostic...[/cyan]")
+        try:
+            from fuji_tcg_scanner.scanner_twain import run_twain_diagnostic
+            run_twain_diagnostic()
+        except ImportError:
+            console.print("[red]TWAIN module not installed. Install with: pip install twain[/red]")
+            console.print("[yellow]Note: TWAIN typically requires 32-bit Python on Windows[/yellow]")
+        except Exception as e:
+            console.print(f"[red]TWAIN diagnostic failed: {e}[/red]")
+            if ctx.obj.get("debug"):
+                import traceback
+                traceback.print_exc()
+    else:
+        console.print("[cyan]Running WIA scanner diagnostic...[/cyan]")
+        try:
+            from fuji_tcg_scanner.scanner_diagnostic import run_diagnostic
+            run_diagnostic()
+        except Exception as e:
+            console.print(f"[red]WIA diagnostic failed: {e}[/red]")
+            if ctx.obj.get("debug"):
+                import traceback
+                traceback.print_exc()
+
+
+@main.command()
+@click.option("--backend", type=click.Choice(["wia", "twain"]), default="wia", help="Scanner backend to use")
+@click.pass_context
+def scanner_settings(ctx: click.Context, backend: str) -> None:
+    """
+    Open the scanner's native settings dialog.
+
+    This allows access to all driver-specific settings including
+    feeding options, paper handling, and advanced features.
+    """
+    if sys.platform != "win32":
+        console.print("[yellow]Scanner settings dialog only available on Windows[/yellow]")
+        return
+
+    if backend == "twain":
+        console.print("[cyan]Opening TWAIN scanner settings...[/cyan]")
+        try:
+            from fuji_tcg_scanner.scanner_twain import TWAINScanner
+
+            scanner = TWAINScanner()
+            scanner.open()
+            console.print("[yellow]Opening scanner settings dialog...[/yellow]")
+            scanner.show_settings_dialog()
+            scanner.close()
+        except ImportError:
+            console.print("[red]TWAIN module not installed. Install with: pip install twain[/red]")
+        except Exception as e:
+            console.print(f"[red]Failed to open settings: {e}[/red]")
+    else:
+        console.print("[yellow]WIA does not have a native settings dialog.[/yellow]")
+        console.print("Use 'tcg-scanner diagnostic' to see available settings.")
+        console.print("Or use 'tcg-scanner scanner-settings --backend twain' for TWAIN dialog.")
 
 
 if __name__ == "__main__":

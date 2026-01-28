@@ -18,7 +18,7 @@ classifiers = [
     "Environment :: Console",
     "Intended Audience :: End Users/Desktop",
     "License :: OSI Approved :: MIT License",
-    "Operating System :: POSIX :: Linux",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
@@ -27,7 +27,6 @@ classifiers = [
     "Topic :: Multimedia :: Graphics :: Capture :: Scanners",
 ]
 dependencies = [
-    "python-sane>=2.9.1",
     "Pillow>=10.0.0",
     "opencv-python>=4.8.0",
     "numpy>=1.24.0",
@@ -36,6 +35,8 @@ dependencies = [
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
     "tomli>=2.0.0;python_version<'3.11'",
+    "pywin32>=306;sys_platform=='win32'",
+    "python-sane>=2.9.1;sys_platform=='linux'",
 ]
 
 [project.optional-dependencies]
@@ -49,9 +50,15 @@ dev = [
 gui = [
     "PyQt6>=6.5.0",
 ]
+twain = [
+    "twain>=1.0.0;sys_platform=='win32'",
+]
 
 [project.scripts]
 tcg-scanner = "fuji_tcg_scanner.cli:main"
+
+[project.gui-scripts]
+tcg-scanner-gui = "fuji_tcg_scanner.gui:run_gui"
 
 [project.urls]
 Homepage = "https://github.com/fuji-tcg-scanner"
